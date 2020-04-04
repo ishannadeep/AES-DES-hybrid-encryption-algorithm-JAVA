@@ -1,6 +1,8 @@
 
 package aes;
 
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -8,7 +10,8 @@ import java.util.Arrays;
  * @author ishan
  */
 public class Aes {
-
+    
+    int key_columns_temp[][]=new int[60][4];
     int pc1[]={6, 4, 15, 7, 13, 9, 11, 2, 5, 14, 8, 10, 0, 12, 1, 3};
     int  fp[] = {12, 14, 7, 15, 1, 8, 0, 3, 10, 5, 11, 6, 13, 4, 9, 2};
     int s_box[]={
@@ -93,11 +96,17 @@ public class Aes {
         shift_A_row(s,2,2);
         shift_A_row(s,1,3);
     }
-    public void add_round_key(int s[][],int k[][])
+    public void add_round_key(int s[][],int k[][],int start_column)
     {
-        for(int i=0;i<4;i++)
-            for(int j=0;j<4;j++)
-                s[i][j] ^= k[i][j];
+        int row=0;
+        for(int x=start_column;x<start_column+4;x++)
+        {
+            for(int y=0;y<4;y++)
+            {
+                s[row][y]=k[x][y];                
+            }
+            row++;
+        }  
     }
     int r_con[] = {
     0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40,
@@ -228,7 +237,7 @@ public class Aes {
       int len=0;
       for(int j=0;j<iterations;j++)
       {       
-        block = Arrays.copyOfRange(message,len , len+2);
+        block = Arrays.copyOfRange(message,len , len+16);
         for(int i=0;i<16;i++)
         {
             temp[j][i]=block[i];
@@ -248,7 +257,7 @@ public class Aes {
        int[] word=new int[4];
        int p=1;
        int xornum=8;
-       int key_columns_temp[][]=new int[60][4];
+       
        int r=0;
        for(int x=0;x<key_columns.length;x++){
             for(int y=0;y<key_columns[0].length;y++){
@@ -348,13 +357,108 @@ public class Aes {
       //Encrypts a single block of 16 byte long plaintext.
          //assert len(plaintext) == 16
        int[][] plain_state=new int[4][4];
-       plain_state = bytes2matrix(plaintext);
+       int num_roundkeyMetrices=4;       
+       plain_state = bytes2matrix(plaintext);  
+       add_round_key(plain_state,key_columns_temp,0);
+       for(int i=1;i<14;i++)
+       {    
+            sub_bytes(plain_state);            
+            shift_rows(plain_state);           
+            plain_state=array2matrix(permutate(pc1,matrix2array(plain_state)));
+            add_round_key(plain_state,key_columns_temp,num_roundkeyMetrices);
+            num_roundkeyMetrices+=4;
+       }
+       sub_bytes(plain_state);
+       shift_rows(plain_state);
+       add_round_key(plain_state,key_columns_temp,56);
        
+       return matrix2bytes(plain_state);
      }
-    public static void main(String[] args) {
-    
+     public byte[] decrypt_block(byte[] ciphertext)
+     {
+        int[][] cipher_state=new int[4][4];
+        int num_roundkeyMetrices=0; 
+        cipher_state = bytes2matrix(ciphertext);
 
+        add_round_key(cipher_state,key_columns_temp,56);
+        inv_shift_rows(cipher_state);
+        inv_sub_bytes(cipher_state);
         
+        
+        for(int i=13;i>0;i--)
+        {
+            add_round_key(cipher_state, key_columns_temp,i);
+         
+            
+            cipher_state=array2matrix(permutate(fp,matrix2array(cipher_state)));
+           
+            inv_shift_rows(cipher_state);
+            inv_sub_bytes(cipher_state);
+        }
+        add_round_key(cipher_state, key_columns_temp,0);
+
+        return matrix2bytes(cipher_state);
+     }
+     public byte[] encrypt(byte[] plaintext)
+     {
+         plaintext = pad(plaintext);
+         byte[] cipher=new byte[plaintext.length];
+         byte[] temp=new byte[16];
+         byte[][] split_blocks_temp=split_blocks(plaintext);  
+         int len_block=split_blocks_temp.length;
+         int round=0;
+         for(int i=0;i<len_block;i++)
+         {
+             temp=encrypt_block(split_blocks_temp[i]);
+             for(int x=0;x<16;x++)
+             {
+                 cipher[round]=temp[x];
+                 round++;
+             }
+         }
+     return cipher;
+     }
+     public byte[] decrypt(byte[] cipher)
+     {
+         
+         byte[] plaintext=new byte[cipher.length];
+         byte[] temp=new byte[16];
+         byte[][] split_blocks_temp=split_blocks(cipher);  
+         int len_block=split_blocks_temp.length;
+         int round=0;
+         for(int i=0;i<len_block;i++)
+         {
+             temp=decrypt_block(split_blocks_temp[i]);
+             for(int x=0;x<16;x++)
+             {
+                 plaintext[round]=temp[x];
+                 round++;
+             }
+         }
+         plaintext =unpad(plaintext);
+     return plaintext;
+     }
+    public static void main(String[] args) throws UnsupportedEncodingException {
+    
+    Aes AES=new Aes();
+     String key = "ahdfsujeytsbsdfawskdfhsdgfereijd";
+     String text="hellomynameisish";
+     
+     byte key_arr[] = key.getBytes("UTF8");
+     byte text_arr[] = text.getBytes("UTF8");
+     
+     int[][] keyarray= AES._expand_key(key_arr);
+     byte[] cipher=AES.encrypt(text_arr);
+     
+     String str_ciph = new String(cipher, StandardCharsets.UTF_8);
+     System.out.println("cipher");
+     System.out.println(str_ciph);
+     
+     byte[] plantext=AES.decrypt(cipher);
+     
+     String str_plan = new String(plantext, StandardCharsets.UTF_8);
+     System.out.println("cipher");
+     System.out.println(str_plan);
     }
     
 }
