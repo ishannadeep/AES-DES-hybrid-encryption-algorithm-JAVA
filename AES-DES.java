@@ -50,7 +50,7 @@ public class Aes {
     0x60, 0x51, 0x7F, 0xA9, 0x19, 0xB5, 0x4A, 0x0D, 0x2D, 0xE5, 0x7A, 0x9F, 0x93, 0xC9, 0x9C, 0xEF,
     0xA0, 0xE0, 0x3B, 0x4D, 0xAE, 0x2A, 0xF5, 0xB0, 0xC8, 0xEB, 0xBB, 0x3C, 0x83, 0x53, 0x99, 0x61,
     0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D,
-      };
+    };
       
     public void sub_bytes(int s[][])
     {
@@ -103,7 +103,7 @@ public class Aes {
         {
             for(int y=0;y<4;y++)
             {
-                s[row][y]=k[x][y];                
+                s[row][y]^=k[x][y];                
             }
             row++;
         }  
@@ -130,14 +130,14 @@ public class Aes {
         {
             for(int j=0;j<4;j++)
             {
-             temp[i][j]=text[z];
+             temp[i][j]=text[z]& 0xFF;
              z++;
             }
         }
         return  temp;     
     }
     public byte[] matrix2bytes(int[][] text)
-     {
+    {
          
          byte[] temp=new byte[16];  
           int z=0;
@@ -150,9 +150,9 @@ public class Aes {
             }
         }
         return  temp;  
-     }
+    }
     public int[] matrix2array(int[][] text)
-     {
+    {
           int[] temp=new int[16];  
           int z=0;
         for(int i=0;i<4;i++)
@@ -164,9 +164,9 @@ public class Aes {
             }
         }
         return  temp;  
-     }
+    }
     public int[][] array2matrix(int[] text)
-     {
+    {
         int[][] temp=new int[4][4];
         int z=0;
         for(int i=0;i<4;i++)
@@ -178,13 +178,6 @@ public class Aes {
             }
         }
         return  temp;     
-     }
-    public byte[] xor_bytes(byte[] a,byte[] b)
-    {
-        byte[] temp=new byte[a.length];
-        for(int i=0;i<a.length;i++)
-            temp[i]=(byte) (a[i] ^ b[i]);
-        return temp;
     }
     public int[] xor_ints(int[] a,int[] b)
     {
@@ -197,11 +190,12 @@ public class Aes {
         }
         return temp;
     }
-     public byte[] pad(byte[] plaintext)
+    public byte[] pad(byte[] plaintext)
     {
-        int plainLlength=plaintext.length;
+        int padding_len=0;
+        int plainLlength=plaintext.length;    
+        padding_len=16 - (plaintext.length % 16);
         
-        int padding_len=16 - (plaintext.length % 16);
         int plainPadLen=plainLlength+padding_len;
         byte[] temp=new byte[plainPadLen];
         
@@ -252,8 +246,6 @@ public class Aes {
        //Initialize round keys with raw key material.
        int[][] key_columns=bytes2matrix(master_key);
        int iteration_size=(int) Math.floor(master_key.length/4);
-       //Each iteration has exactly as many columns as the key material.
-       int columns_per_iteration=key_columns.length;
        int[] word=new int[4];
        int p=1;
        int xornum=8;
@@ -313,53 +305,20 @@ public class Aes {
            for(int x=0;x<4;x++){
              key_columns_temp[xornum][x]=word[x];}        
            xornum++;
-           columns_per_iteration++;
         //end of while loop
        }
        //return 60:4 length matrix
        return key_columns_temp;
     }
-     int[][] roundkey2Metix(int[] full_extended_key)
+    public byte[] encrypt_block(byte[] plaintext)
     {
-     int key_length=full_extended_key.length;
-     
-     if(key_length%16!=0)
-            System.out.println("errr: full key length cannot devide by 16");
-     int rows=key_length/16;
-     int[][] temp=new int[rows][16];
-     int z=0;
-     for(int i=0;i<rows;i++)
-        {
-            for(int j=0;j<16;j++)
-            {
-             temp[i][j]=full_extended_key[z];
-             z++;
-            }
-        }
-     return temp;
-    }
-    int[][] metrix2metrix(int[][] metrix,int row)
-    {
-    int[][] temp=new int[4][4];
-    int z=0;
-     for(int i=0;i<4;i++)
-        {
-            for(int j=0;j<4;j++)
-            {
-             temp[i][j]=metrix[row][z];
-             z++;
-            }
-        }
-     return temp;
-    }
-     public byte[] encrypt_block(byte[] plaintext)
-     {
       //Encrypts a single block of 16 byte long plaintext.
-         //assert len(plaintext) == 16
        int[][] plain_state=new int[4][4];
-       int num_roundkeyMetrices=4;       
+       int num_roundkeyMetrices=4;   
+       
        plain_state = bytes2matrix(plaintext);  
        add_round_key(plain_state,key_columns_temp,0);
+       
        for(int i=1;i<14;i++)
        {    
             sub_bytes(plain_state);            
@@ -368,39 +327,38 @@ public class Aes {
             add_round_key(plain_state,key_columns_temp,num_roundkeyMetrices);
             num_roundkeyMetrices+=4;
        }
+       
        sub_bytes(plain_state);
        shift_rows(plain_state);
        add_round_key(plain_state,key_columns_temp,56);
        
        return matrix2bytes(plain_state);
-     }
-     public byte[] decrypt_block(byte[] ciphertext)
-     {
+    }
+    public byte[] decrypt_block(byte[] ciphertext)
+    {
         int[][] cipher_state=new int[4][4];
-        int num_roundkeyMetrices=0; 
-        cipher_state = bytes2matrix(ciphertext);
-
+        int num_roundkeyMetrices=52; 
+        
+        cipher_state = bytes2matrix(ciphertext); 
         add_round_key(cipher_state,key_columns_temp,56);
-        inv_shift_rows(cipher_state);
+        inv_shift_rows(cipher_state);  
         inv_sub_bytes(cipher_state);
-        
-        
+
         for(int i=13;i>0;i--)
         {
-            add_round_key(cipher_state, key_columns_temp,i);
-         
-            
+            add_round_key(cipher_state, key_columns_temp,num_roundkeyMetrices);
             cipher_state=array2matrix(permutate(fp,matrix2array(cipher_state)));
-           
             inv_shift_rows(cipher_state);
             inv_sub_bytes(cipher_state);
+            num_roundkeyMetrices-=4;
         }
+        
         add_round_key(cipher_state, key_columns_temp,0);
 
         return matrix2bytes(cipher_state);
-     }
-     public byte[] encrypt(byte[] plaintext)
-     {
+    }
+    public byte[] encrypt(byte[] plaintext)
+    {
          plaintext = pad(plaintext);
          byte[] cipher=new byte[plaintext.length];
          byte[] temp=new byte[16];
@@ -417,9 +375,9 @@ public class Aes {
              }
          }
      return cipher;
-     }
-     public byte[] decrypt(byte[] cipher)
-     {
+    }
+    public byte[] decrypt(byte[] cipher)
+    {
          
          byte[] plaintext=new byte[cipher.length];
          byte[] temp=new byte[16];
@@ -436,29 +394,44 @@ public class Aes {
              }
          }
          plaintext =unpad(plaintext);
+         
      return plaintext;
-     }
+    }
     public static void main(String[] args) throws UnsupportedEncodingException {
     
-    Aes AES=new Aes();
+     Aes AES=new Aes();
+     //256-bit key and plain text
      String key = "ahdfsujeytsbsdfawskdfhsdgfereijd";
      String text="hellomynameisish";
      
+     System.out.println("plan text before encryption :");
+     System.out.println(text);
+     System.out.println();
+     
+     //converting key and plain text to byte arrays
      byte key_arr[] = key.getBytes("UTF8");
      byte text_arr[] = text.getBytes("UTF8");
-     
+      
+     //expand key
      int[][] keyarray= AES._expand_key(key_arr);
+     
+     //encrypting plaintext
      byte[] cipher=AES.encrypt(text_arr);
      
+     //converting encrypted byte cipher to string
      String str_ciph = new String(cipher, StandardCharsets.UTF_8);
-     System.out.println("cipher");
+     System.out.println("encrypted plain text :");
      System.out.println(str_ciph);
-     
+     System.out.println();
+        
+     //decrypting cipher text
      byte[] plantext=AES.decrypt(cipher);
      
+     //converting decrypted byte plaintext to string
      String str_plan = new String(plantext, StandardCharsets.UTF_8);
-     System.out.println("cipher");
+     System.out.println("decrypted cipher :");
      System.out.println(str_plan);
+
     }
     
 }
